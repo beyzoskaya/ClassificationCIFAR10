@@ -9,6 +9,17 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
+def plot_losses(train_losses, val_losses, model_name):
+    plt.figure(figsize=(10, 5))
+    plt.plot(train_losses, label='Training Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.title('Training and Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(f"./loss_plot_{model_name}.png")
+
 def parser_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-model_cfg", required=True, default="VGG16", type=str)
@@ -28,8 +39,8 @@ def parser_args():
     
     return parser.parse_args()
 
-def download_dataset(dataset_dir, download):
-    return torchvision.datasets.CIFAR10(root=dataset_dir, train=True, download=download), torchvision.datasets.CIFAR10(root=dataset_dir, train=False, download=download)
+def download_dataset(dataset_dir, transform, download):
+    return torchvision.datasets.CIFAR10(root=dataset_dir, train=True, download=download, transform=transform), torchvision.datasets.CIFAR10(root=dataset_dir, train=False, download=download)
 
 
 def split_crop_dataset(train_dataset, test_dataset, train_size, val_size, test_size):
@@ -79,8 +90,7 @@ def train(model: torch.nn.Module,
           dataloader: torch.utils.data.DataLoader,
           loss_fn: torch.nn.Module,
           optimizer: torch.optim.Optimizer,
-          device: torch.device,
-          transform):
+          device: torch.device):
     model.train()
     train_loss, train_acc = 0,0
     for batch,(X,y) in enumerate(dataloader):
@@ -152,7 +162,7 @@ def main():
     args = parser_args()
     
     # take dataset
-    train_dataset, test_dataset = download_dataset(args.dataset_dir, download=True)
+    train_dataset, test_dataset = download_dataset(args.dataset_dir, transform=data_transform, download=True)
     train_dataset, val_dataset, test_dataset = split_crop_dataset(train_dataset, test_dataset, train_size=600, val_size=200, test_size=200)    
     train_dataloader, val_dataloader, test_dataloader = get_dataloaders(args.batch_size, train_dataset, val_dataset, test_dataset)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -187,6 +197,7 @@ def main():
             val_losses.append(val_loss)
             print(f"Epoch {epoch + 1}/{max_epochs}, Training Loss: {train_loss}, Training Accuracy: {train_acc}, Validation Loss: {val_loss}, Validation Accuracy: {val_acc}.")
             train_losses.append(train_loss)
+        plot_losses(train_losses, val_losses, args.model_cfg)
         torch.save(model.state_dict(), f"{args.save_dir}/{args.model_cfg}_{args.max_epochs}.pth")
     elif args.test:
         try:
