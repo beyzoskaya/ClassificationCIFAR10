@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import os
 import imageio
 import glob
-
-
+from PIL import Image
+from natsort import natsorted
 cfg = {
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
@@ -17,8 +17,22 @@ def create_gif(image_path_pattern, gif_path, duration=0.5):
         images.append(imageio.imread(filename))
     imageio.mimsave(gif_path, images, duration=duration)
 
+def create_plot(path):
+    imgs = []
+    for layer in natsorted(os.listdir(path)):
+        print(layer)
+        channels = os.path.join(path, layer)
+        imgs.append(Image.open(os.path.join(channels, sorted(os.listdir(channels))[0])))
+    plt.figure(figsize=(20, 10))  # Adjust the size as needed
+    for idx, img in enumerate(imgs):
+        ax = plt.subplot(1, len(imgs), idx + 1)  # Creates a subplot for each image
+        ax.imshow(img)
+        ax.set_title(f"Layer_{idx}")  # The layer name is set as the title of each subplot
+        ax.axis('off')  # Turn off axis
 
-
+    plt.tight_layout()
+    plt.savefig("./plot_convs.png")
+        
 class VGG(nn.Module):
     def __init__(self, vgg_name):
         super(VGG, self).__init__()
@@ -66,3 +80,4 @@ class VGG(nn.Module):
 
                 plt.imsave(os.path.join(layer_dir, f'channel_{channel}.png'), fmap_normalized, cmap='viridis')
         create_gif('./feature_maps/layer_0/*.png', 'layer_0.gif', duration=0.5)
+        create_plot('./feature_maps')
