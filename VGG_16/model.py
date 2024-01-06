@@ -5,11 +5,17 @@ import imageio
 import glob
 from PIL import Image
 from natsort import natsorted
+import torch
+
 cfg = {
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
+    'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],  # this and below candidate
+    'VGG22': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 512, 'M', 512, 'M'],
+    'VGG26': [64, 64, 64, 'M', 128, 128, 128, 'M', 256, 256, 256, 256, 256, 'M', 512, 512, 512, 512, 512, 'M', 512, 512, 512, 512, 512, 'M', 512, 512, 'M']
 }
+
 
 def create_gif(image_path_pattern, gif_path, duration=0.5):
     images = []
@@ -34,18 +40,19 @@ def create_plot(path):
     plt.savefig("./plot_convs.png")
         
 class VGG(nn.Module):
-    def __init__(self, vgg_name):
+    def __init__(self, vgg_name, num_classes=10, init_size=(32, 32)):
         super(VGG, self).__init__()
-        self.vgg_name = vgg_name
-        self.features = self._make_layers(cfg[self.vgg_name])
-        self.classifier = nn.Linear(512, 10)
+        self.features = self._make_layers(cfg[vgg_name])
+        self.num_classes = num_classes
+
+        # Dynamically adjust the classifier
+        with torch.no_grad():
+            self._initialize_classifier(init_size)
 
     def forward(self, x):
-        self.conv_outputs = []  # Reset at each forward pass
-        for layer in self.features:
-            x = layer(x)
-            if isinstance(layer, nn.Conv2d):
-                self.conv_outputs.append(x)  # Store conv layer output
+        # print(x.shape)
+        x = self.features(x)
+        # print(x.shape)
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
         return x
@@ -57,12 +64,15 @@ class VGG(nn.Module):
             if x == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
-                layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
-                           nn.BatchNorm2d(x),
-                           nn.ReLU(inplace=True)]
+                layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1), nn.ReLU(inplace=True)]
                 in_channels = x
-        layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers)
+
+    def _initialize_classifier(self, init_size):
+        # Forward a dummy input through the feature layers to determine output size
+        dummy_input = torch.zeros(1, 3, *init_size)
+        output_size = self.features(dummy_input).view(-1).shape[0]
+        self.classifier = nn.Linear(output_size, self.num_classes)
     
     def save_feature_maps(self, output_dir='feature_maps'):
         if not os.path.exists(output_dir):
