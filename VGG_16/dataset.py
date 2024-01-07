@@ -1,5 +1,5 @@
 from datasets import load_dataset, load_from_disk
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, ConcatDataset
 from torchvision.datasets import CIFAR10
 import torch
 import os
@@ -80,9 +80,9 @@ class ChestXrayDataset(Dataset):
 
         # Load the dataset from disk
         full_dataset = load_from_disk(os.path.join(dataset_dir, dataset_name))
-
+        print(full_dataset)
         # Select the appropriate split
-        self.dataset = full_dataset['train'] if train else full_dataset['test']
+        self.dataset =  ConcatDataset([full_dataset['train'], full_dataset['validation']]) if train else full_dataset['test']
 
     def __len__(self):
         """
@@ -186,27 +186,65 @@ class CIFAR10Dataset(Dataset):
 
 
 
-def load_dataset_cfg(dataset_dir, dataset_name, transform):
+def load_dataset_cfg(dataset_dir, dataset_name, train_transform, test_transform):
     if dataset_name in DATASET_CFG:
         if dataset_name == DATASET_CFG[0]:
-            train_dataset = CIFAR10Dataset(root_dir=dataset_dir, train=True, transform=transform)
-            test_dataset = CIFAR10Dataset(root_dir=dataset_dir, train=False, transform=transform)
+            train_dataset = CIFAR10Dataset(root_dir=dataset_dir, train=True, transform=train_transform)
+            test_dataset = CIFAR10Dataset(root_dir=dataset_dir, train=False, transform=test_transform)
             return train_dataset, test_dataset
         elif dataset_name == DATASET_CFG[1]:
-            train_dataset = Oxford102FlowersDataset(root_dir=dataset_dir, train=True, transform=transform)
-            test_dataset = Oxford102FlowersDataset(root_dir=dataset_dir, train=False, transform=transform)
+            train_dataset = Oxford102FlowersDataset(root_dir=dataset_dir, train=True, transform=train_transform)
+            test_dataset = Oxford102FlowersDataset(root_dir=dataset_dir, train=False, transform=test_transform)
             print(len(train_dataset))
             print(len(test_dataset))
             return train_dataset, test_dataset
         elif dataset_name == DATASET_CFG[2]:
-            train_dataset = ChestXrayDataset(dataset_dir=dataset_dir, dataset_name=dataset_name, train=True, transform=transform)
-            test_dataset = ChestXrayDataset(dataset_dir=dataset_dir, dataset_name=dataset_name, train=False, transform=transform)
+            train_dataset = ChestXrayDataset(dataset_dir=dataset_dir, dataset_name=dataset_name, train=True, transform=train_transform)
+            test_dataset = ChestXrayDataset(dataset_dir=dataset_dir, dataset_name=dataset_name, train=False, transform=test_transform)
             return train_dataset, test_dataset
         elif dataset_name == DATASET_CFG[3]:
-            train_dataset = STL10Dataset(data_dir=dataset_dir, train=True, transform=transform)
-            test_dataset = STL10Dataset(data_dir=dataset_dir, train=False, transform=transform)
+            train_dataset = STL10Dataset(data_dir=dataset_dir, train=True, transform=train_transform)
+            test_dataset = STL10Dataset(data_dir=dataset_dir, train=False, transform=test_transform)
             # print(len(train_dataset))
             # print(len(test_dataset))
             return train_dataset, test_dataset
     else:
         assert "dataset is not in CFG"
+        
+
+def augment_image(image_path, save_dir, transform, num_augmented_images=10):
+    """
+    Apply transformations to an image and save the augmented images.
+    """
+    image = Image.open(image_path)
+    for i in range(num_augmented_images):
+        augmented_image = transform(image)
+        augmented_image_path = os.path.join(save_dir, f"augmented_{i}_{os.path.basename(image_path)}")
+        augmented_image.save(augmented_image_path)
+
+from torchvision.transforms import transforms
+
+def augment_dataset_whole(dataset_dir):
+    # Define your transformations here
+    transform = transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5),
+        transforms.RandomRotation(30),
+        transforms.RandomResizedCrop(96, scale=(0.8, 1.0), ratio=(0.75, 1.33))
+    ])
+
+    for image_dir in os.listdir(dataset_dir):
+        label_dir = os.path.join(dataset_dir, image_dir)
+        if os.path.isdir(label_dir):
+            for image_file in os.listdir(label_dir):
+                image_path = os.path.join(label_dir, image_file)
+                if os.path.isfile(image_path):
+                    augment_image(image_path, label_dir, transform)
+
+if __name__ == "__main__":
+    dataset_dir = "/home/emir/Desktop/dev/datasets/cs454_datasets/102flowers/"
+    print(len(os.listdir(dataset_dir+"jpg")))
+    print(loadmat(dataset_dir+"setid.mat"))
+    # augment_dataset_whole(dataset_dir)
+    
+        

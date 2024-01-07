@@ -10,10 +10,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from dataset import load_dataset_cfg, DATASET_CFG
 
-SIZES = [32, 512, 640, 96]
+SIZES = [32, 256, 256, 96]
+SIZES = [32, 256, 512, 96]
 
 
-def plot_losses(train_losses, val_losses, model_name, dataset_name):
+def plot_losses(train_losses, val_losses, model_name, dataset_name, num_epochs, lr, optimizer):
     plt.figure(figsize=(10, 5))
     plt.plot(train_losses, label='Training Loss')
     plt.plot(val_losses, label='Validation Loss')
@@ -22,7 +23,7 @@ def plot_losses(train_losses, val_losses, model_name, dataset_name):
     plt.ylabel('Loss')
     plt.legend()
     plt.grid(True)
-    plt.savefig(f"./loss_plot_{model_name}_{dataset_name}.png")
+    plt.savefig(f"./loss_plot_{model_name}_{dataset_name}_{num_epochs}_{lr}_{optimizer}.png")
 
 def parser_args():
     parser = argparse.ArgumentParser()
@@ -79,12 +80,13 @@ def train(model: torch.nn.Module,
         X,y = X.to(device), y.to(device)
         # print(X.shape)
         y_pred = model(X)
+        # loss = loss_fn(y_pred.squeeze(), y.float())
         loss = loss_fn(y_pred, y)
         train_loss += loss.item()
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print(f"iteration {batch}: {loss.item()}")
+        # print(f"iteration {batch}: {loss.item()}")
         y_pred_class = torch.argmax(torch.softmax(y_pred, dim=1), dim=1)
         train_acc += (y_pred_class == y).sum().item() / len(y)
 
@@ -102,6 +104,7 @@ def validate(model: torch.nn.Module,
         for batch, (X_val, y_val) in enumerate(dataloader):
             X_val, y_val = X_val.to(device), y_val.to(device)
             y_val_pred = model(X_val)
+            # loss_val = loss_fn(y_val_pred.squeeze(), y_val.float())
             loss_val = loss_fn(y_val_pred, y_val)
             val_loss += loss_val.item()
 
@@ -133,33 +136,47 @@ def test(model: torch.nn.Module,
     test_accuracy /= len(dataloader.dataset)
     return test_accuracy
 
+def count_trainable_params(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+
 def main():
-    data_transform = transforms.Compose([
-        # transforms.RandomHorizontalFlip(),
-        # transforms.RandomCrop(32, padding=4),
-        # transforms.RandomRotation(10),
-        # transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-        transforms.ToTensor(),
-        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-    ])
     args = parser_args()
     input_size = SIZES[DATASET_CFG.index(args.dataset_name)]
-    data_transform = transforms.Compose([
-        # transforms.RandomHorizontalFlip(),
-        # transforms.RandomCrop(32, padding=4),
-        transforms.Resize((input_size, input_size)),
-        # transforms.RandomRotation(10),
-        # transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-    ])
+    # data_transform = transforms.Compose([
+    #     transforms.Resize((input_size, input_size)),
+    #     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    # ])
     
-    train_dataset, test_dataset = load_dataset_cfg(dataset_name=args.dataset_name, dataset_dir=args.dataset_dir, transform=data_transform)
+    train_transform = transforms.Compose([
+        transforms.Resize((input_size, input_size)),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        transforms.ToTensor(),
+        transforms.RandomApply([transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0))], p=0.2),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+    
+    
+    test_transform = transforms.Compose([transforms.Resize((input_size, input_size)),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize([0.485, 0.456, 0.406], 
+                                                           [0.229, 0.224, 0.225])])
+    
+    
+    print(f"input_size :{input_size}")
+    
+    train_dataset, test_dataset = load_dataset_cfg(dataset_name=args.dataset_name, dataset_dir=args.dataset_dir, train_transform=train_transform, test_transform=test_transform)
+    print(f"len(train_dataset): {len(train_dataset)}")
+    print(f"len(test_dataset): {len(test_dataset)}")
     # train_dataset, val_dataset, test_dataset = split_crop_dataset(args, train_dataset, test_dataset, train_size=600, val_size=200, test_size=200)  
     train_dataloader, val_dataloader, test_dataloader = get_dataloaders(args.batch_size, train_dataset, None, test_dataset)
-    print(len(train_dataloader))
+    # print(len(train_dataloader))
+    # print(len(test_dataloader))
     # print(len(val_dataloader))
-    print(len(test_dataloader))
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if not args.test and not args.predict:
         try:
@@ -167,6 +184,8 @@ def main():
         except:
             print(f"{args.model_cfg} model is not exist.")
         model = VGG(args.model_cfg, args.num_classes, init_size=(input_size, input_size))
+        num_trainable_params = count_trainable_params(model)
+        print(f"Number of trainable parameters: {num_trainable_params}")
         if args.optimizer == "SGD":
             optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
         elif args.optimizer == 'ADAM':
@@ -176,9 +195,9 @@ def main():
 
         model.to(device)
         max_epochs = args.max_epochs
-        if args.num_classes >= 2:
+        if args.num_classes > 2:
             loss_fn = torch.nn.CrossEntropyLoss()
-        elif args.num_classes ==2:
+        elif args.num_classes == 1:
             loss_fn = torch.nn.BCEWithLogitsLoss()
         train_losses = []
         val_losses = []
@@ -195,7 +214,7 @@ def main():
             val_losses.append(val_loss)
             print(f"Epoch {epoch + 1}/{max_epochs}, Training Loss: {train_loss}, Training Accuracy: {train_acc}, Validation Loss: {val_loss}, Validation Accuracy: {val_acc}.")
             train_losses.append(train_loss)
-        plot_losses(train_losses, val_losses, args.model_cfg, dataset_name=args.dataset_name)
+        plot_losses(train_losses, val_losses, args.model_cfg, dataset_name=args.dataset_name, num_epochs=args.max_epochs, lr=args.lr, optimizer=args.optimizer)
         torch.save(model.state_dict(), f"{args.save_dir}/{args.model_cfg}_{args.max_epochs}_{args.dataset_name}.pth")
     elif args.test:
         try:

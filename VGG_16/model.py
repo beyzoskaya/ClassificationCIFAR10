@@ -8,6 +8,7 @@ from natsort import natsorted
 import torch
 
 cfg = {
+    'VGG8': [64, 'M', 64, 'M', 128],
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
@@ -40,11 +41,11 @@ def create_plot(path):
     plt.savefig("./plot_convs.png")
         
 class VGG(nn.Module):
-    def __init__(self, vgg_name, num_classes=10, init_size=(32, 32)):
+    def __init__(self, vgg_name, num_classes=10, init_size=(32, 32), dropout_rate=0.1):
         super(VGG, self).__init__()
+        self.dropout_rate = dropout_rate
         self.features = self._make_layers(cfg[vgg_name])
         self.num_classes = num_classes
-
         # Dynamically adjust the classifier
         with torch.no_grad():
             self._initialize_classifier(init_size)
@@ -64,9 +65,15 @@ class VGG(nn.Module):
             if x == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
-                layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1), nn.ReLU(inplace=True)]
+                layers += [nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
+                            nn.BatchNorm2d(x),
+                            nn.ReLU(inplace=True),
+                            nn.Dropout(self.dropout_rate)]
                 in_channels = x
+        layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers)
+
+
 
     def _initialize_classifier(self, init_size):
         # Forward a dummy input through the feature layers to determine output size
