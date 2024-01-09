@@ -10,9 +10,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from dataset import load_dataset_cfg, DATASET_CFG
 
-SIZES = [32, 256, 256, 96]
 SIZES = [32, 256, 512, 96]
+DATASET_CFG = ["cifar10", "102flowers", "chest_xray", "stl10"]
 
+cfg = {
+    'VGG8': [64, 'M', 64, 'M', 128],
+    'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
+    'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+    'VGG26': [64, 64, 64, 'M', 128, 128, 128, 'M', 256, 256, 256, 256, 256, 'M', 512, 512, 512, 512, 512, 'M', 512, 512, 512, 512, 512, 512, 512, 'M']
+}
 
 def plot_losses(train_losses, val_losses, model_name, dataset_name, num_epochs, lr, optimizer):
     plt.figure(figsize=(10, 5))

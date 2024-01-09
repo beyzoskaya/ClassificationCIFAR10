@@ -12,9 +12,8 @@ cfg = {
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-    'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],  # this and below candidate
-    'VGG22': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 512, 'M', 512, 'M'],
-    'VGG26': [64, 64, 64, 'M', 128, 128, 128, 'M', 256, 256, 256, 256, 256, 'M', 512, 512, 512, 512, 512, 'M', 512, 512, 512, 512, 512, 'M', 512, 512, 'M']
+    'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+    'VGG26': [64, 64, 64, 'M', 128, 128, 128, 'M', 256, 256, 256, 256, 256, 'M', 512, 512, 512, 512, 512, 'M', 512, 512, 512, 512, 512, 512, 512, 'M']
 }
 
 
@@ -44,6 +43,7 @@ class VGG(nn.Module):
     def __init__(self, vgg_name, num_classes=10, init_size=(32, 32), dropout_rate=0.1):
         super(VGG, self).__init__()
         self.dropout_rate = dropout_rate
+        print(vgg_name)
         self.features = self._make_layers(cfg[vgg_name])
         self.num_classes = num_classes
         # Dynamically adjust the classifier
@@ -77,8 +77,11 @@ class VGG(nn.Module):
 
     def _initialize_classifier(self, init_size):
         # Forward a dummy input through the feature layers to determine output size
+        print(init_size)
         dummy_input = torch.zeros(1, 3, *init_size)
         output_size = self.features(dummy_input).view(-1).shape[0]
+        print(output_size)
+        print(self.num_classes)
         self.classifier = nn.Linear(output_size, self.num_classes)
     
     def save_feature_maps(self, output_dir='feature_maps'):

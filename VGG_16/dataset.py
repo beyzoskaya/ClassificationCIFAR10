@@ -123,7 +123,7 @@ class Oxford102FlowersDataset(Dataset):
         """
         self.root_dir = root_dir
         self.transform = transform
-        self.image_labels = loadmat(os.path.join(root_dir, "102flowers/imagelabels.mat"))['labels'][0] - 1  # Adjust label indices to start from 0
+        self.image_labels = loadmat(os.path.join(root_dir, "102flowers/imagelabels_augmented.mat"))['labels'][0] - 1  # Adjust label indices to start from 0
         # print(self.image_labels)
         self.image_files = sorted([f for f in os.listdir(os.path.join(root_dir, "102flowers/jpg/"))])
         # print(self.image_files)
@@ -240,11 +240,47 @@ def augment_dataset_whole(dataset_dir):
                 image_path = os.path.join(label_dir, image_file)
                 if os.path.isfile(image_path):
                     augment_image(image_path, label_dir, transform)
+       
+       
+import scipy             
+def augment_dataset_flowers(dataset_dir, num_augmentations=3):
+    transform = transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5),
+        transforms.RandomRotation(30),
+        # Add more transformations as needed
+    ])
+
+    image_dir = os.path.join(dataset_dir, "102flowers/jpg")
+    label_data = loadmat(os.path.join(dataset_dir, "102flowers/imagelabels.mat"))['labels'][0]
+    # print(len(label_data))
+    for i, file_name in enumerate(os.listdir(image_dir)):
+        if file_name.endswith('.jpg'):
+            image_path = os.path.join(image_dir, file_name)
+            image = Image.open(image_path)
+            label = label_data[i]
+            for augment_idx in range(num_augmentations):
+                augmented_image = transform(image)
+                augmented_file_name = f"z{file_name.split('.')[0]}_aug_{augment_idx}.jpg"
+                augmented_image_path = os.path.join(image_dir, augmented_file_name)
+                augmented_image.save(augmented_image_path)
+                # Append the label of the augmented image to the label data
+                label_data = np.append(label_data, label)
+
+    # # Save the updated label data
+    new_label_file = os.path.join(dataset_dir, "102flowers/imagelabels_augmented.mat")
+    print(len(label_data))
+    scipy.io.savemat(new_label_file, {'labels': label_data})
+
 
 if __name__ == "__main__":
-    dataset_dir = "/home/emir/Desktop/dev/datasets/cs454_datasets/102flowers/"
-    print(len(os.listdir(dataset_dir+"jpg")))
-    print(loadmat(dataset_dir+"setid.mat"))
+    dataset_dir = "/home/emir/Desktop/dev/datasets/cs454_datasets/"
+    # print(len(os.listdir(dataset_dir+"jpg")))
+    # print(loadmat(dataset_dir+"setid.mat"))
     # augment_dataset_whole(dataset_dir)
+    # augment_dataset_flowers(dataset_dir)
+    # print(len(os.listdir(os.path.join(dataset_dir, "102flowers/jpg/"))))
+    # label_data = loadmat(os.path.join(dataset_dir, "102flowers/imagelabels_augmented.mat"))['labels'][0]
+    # print(len(label_data))
     
         
